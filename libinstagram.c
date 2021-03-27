@@ -734,14 +734,14 @@ ig_thread_cb(InstagramAccount *ia, JsonNode *node, gpointer user_data)
 			}
 			
 			gint64 sender = json_object_get_int_member(item, "user_id");
-			const gchar *item_type = json_object_get_string_member(item, "item_type");
-			const gchar *text = NULL;
 			
-			if (purple_strequal(item_type, "text")) {
-				text = json_object_get_string_member(item, "text");
-			} else if (purple_strequal(item_type, "media")) {
-				text = json_object_get_string_member(json_array_get_object_element(json_object_get_array_member(json_object_get_object_member(json_object_get_object_member(item, "media"), "image_versions2"), "candidates"), 0), "url");
-			}
+			/* Setup root node and JSON generator */
+			JsonNode *n = json_node_alloc();
+			json_node_init_object(n, item);
+			JsonGenerator *g = json_generator_new();
+			json_generator_set_root(g, n);
+			gsize text_size;
+			gchar *text = json_generator_to_data(g, &text_size);
 			
 			if (text != NULL) {
 				if (sender == user_id) {
@@ -767,6 +767,11 @@ ig_thread_cb(InstagramAccount *ia, JsonNode *node, gpointer user_data)
 					}
 				}
 			}
+			
+			/* Cleanup */
+			g_free(text);
+			g_object_unref(g);
+			json_node_free(n);
 		}
 	}
 }
