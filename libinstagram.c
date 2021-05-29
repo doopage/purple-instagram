@@ -375,7 +375,18 @@ ig_got_info(InstagramAccount *ia, JsonNode *node, gpointer user_data)
 	purple_notify_user_info_add_pair_html(user_info, _("Bio"), json_object_get_string_member(user, "biography"));
 	purple_notify_user_info_add_pair_html(user_info, _("URL"), json_object_get_string_member(user, "external_url"));
 	
+	JsonObject *json_obj = json_object_new();
+	json_object_set_string_member(json_obj, "username", json_object_get_string_member(user, "username"));
+	json_object_set_string_member(json_obj, "full_name", json_object_get_string_member(user, "full_name"));
+	json_object_set_string_member(json_obj, "profile_pic_url", json_object_get_string_member(user, "profile_pic_url"));
+	gchar *json_str = json_object_to_string(json_obj);
+	
+	purple_notify_user_info_add_pair_html(user_info, _("JSON"), json_str);
+	
 	purple_notify_userinfo(ia->pc, username, user_info, NULL, NULL);
+	
+	g_free(json_str);
+	json_object_unref(json_obj);
 }
 
 static void
@@ -735,13 +746,8 @@ ig_thread_cb(InstagramAccount *ia, JsonNode *node, gpointer user_data)
 			
 			gint64 sender = json_object_get_int_member(item, "user_id");
 			
-			/* Setup root node and JSON generator */
-			JsonNode *n = json_node_alloc();
-			json_node_init_object(n, item);
-			JsonGenerator *g = json_generator_new();
-			json_generator_set_root(g, n);
-			gsize text_size;
-			gchar *text = json_generator_to_data(g, &text_size);
+			/* Convert JSON to string */
+			gchar *text = json_object_to_string(item);
 			
 			if (text != NULL) {
 				if (sender == user_id) {
@@ -770,8 +776,6 @@ ig_thread_cb(InstagramAccount *ia, JsonNode *node, gpointer user_data)
 			
 			/* Cleanup */
 			g_free(text);
-			g_object_unref(g);
-			json_node_free(n);
 		}
 	}
 }
