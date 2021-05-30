@@ -849,7 +849,7 @@ ig_login_successful(InstagramAccount *ia, JsonNode *node, gpointer user_data)
 	ig_fetch_url_with_method(ia, "GET", IG_URL_PREFIX "/friendships/autocomplete_user_list/?version=2&followinfo=True", NULL, ig_friends_cb, NULL);
 	
 	ig_fetch_url_with_method(ia, "GET", IG_URL_PREFIX "/direct_v2/inbox/", NULL, ig_inbox_cb, NULL);
-	ia->heartbeat_timeout = g_timeout_add_seconds(15, ig_inbox_polling, ia);
+	ia->heartbeat_timeout = g_timeout_add_seconds(60, ig_inbox_polling, ia);
 	
 	if (node != NULL) {
 		//TODO use self-user info for downloading own avatar and stuff
