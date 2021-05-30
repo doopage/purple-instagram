@@ -62,6 +62,26 @@ json_object_to_string(JsonObject *obj)
 	return str;
 }
 
+static gchar *
+json_array_to_string(JsonArray *arr)
+{
+	JsonNode *node;
+	gchar *str;
+	JsonGenerator *generator;
+
+	node = json_node_new(JSON_NODE_ARRAY);
+	json_node_set_array(node, arr);
+
+	// a json string ...
+	generator = json_generator_new();
+	json_generator_set_root(generator, node);
+	str = json_generator_to_data(generator, NULL);
+	g_object_unref(generator);
+	json_node_free(node);
+
+	return str;
+}
+
 
 typedef struct {
 	PurpleAccount *account;
@@ -781,6 +801,38 @@ ig_thread_cb(InstagramAccount *ia, JsonNode *node, gpointer user_data)
 }
 
 static void
+ig_pending_inbox_cb(InstagramAccount *ia, JsonNode *node, gpointer user_data)
+{
+	/* Approve all direct pending request */
+	
+	JsonObject *obj = json_node_get_object(node);
+	JsonObject *inbox = json_object_get_object_member(obj, "inbox");
+	JsonArray *threads = json_object_get_array_member(inbox, "threads");
+	gint i;
+	
+	JsonArray *thread_id_array = json_array_new();
+	for (i = json_array_get_length(threads) - 1; i >= 0; i--) {
+		JsonObject *thread = json_array_get_object_element(threads, i);
+		
+		if (!json_object_get_boolean_member(thread, "is_group")) {
+			// This is a one-to-one DM
+			//JsonObject *user = json_array_get_object_element(json_object_get_array_member(thread, "users"), 0);
+		}
+				
+		const gchar *thread_id = json_object_get_string_member(thread, "thread_id");
+		json_array_add_string_element(thread_id_array, thread_id);
+	}
+	
+	gchar *thread_ids_str = json_array_to_string(thread_id_array);
+	gchar *data = g_strdup_printf("thread_ids=%s", thread_ids_str);
+	ig_fetch_url_with_method(ia, "POST", IG_URL_PREFIX "/direct_v2/threads/approve_multiple/", data, NULL, NULL);
+	g_free(thread_ids_str);
+	g_free(data);
+	
+	json_array_unref(thread_id_array);
+}
+
+static void
 ig_inbox_cb(InstagramAccount *ia, JsonNode *node, gpointer user_data)
 {
 	JsonObject *obj = json_node_get_object(node);
@@ -829,6 +881,12 @@ ig_inbox_cb(InstagramAccount *ia, JsonNode *node, gpointer user_data)
 	purple_account_set_int(ia->account, "last_message_timestamp_high", max_last_activity >> 32);
 	purple_account_set_int(ia->account, "last_message_timestamp_low", max_last_activity & 0xFFFFFFFF);
 	ia->last_message_timestamp = max_last_activity;
+	
+	/* Auto approve all direct pending request */
+	gint64 pending_requests_total = json_object_get_int_member(obj, "pending_requests_total");
+	if (pending_requests_total > 0) {
+		ig_fetch_url_with_method(ia, "GET", IG_URL_PREFIX "/direct_v2/pending_inbox/", NULL, ig_pending_inbox_cb, NULL);
+	}
 }
 
 static gboolean
