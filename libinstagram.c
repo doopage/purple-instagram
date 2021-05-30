@@ -867,9 +867,22 @@ ig_inbox_cb(InstagramAccount *ia, JsonNode *node, gpointer user_data)
 			//JsonObject *user = json_array_get_object_element(json_object_get_array_member(thread, "users"), 0);
 		}
 		
+		if (!ia->last_message_timestamp) {
+			//Re-init buddy list on first fetch because the api friendships/autocomplete_user_list/ not always response due to rate limit
+			JsonObject *user = json_array_get_object_element(json_object_get_array_member(thread, "users"), 0);
+			ig_add_buddy_from_json(ia, user);
+		}
+		
 		//Use last_activity_at to work out if there's a newer message
 		gint64 last_activity_at = json_object_get_int_member(thread, "last_activity_at");
 		if (ia->last_message_timestamp && last_activity_at > ia->last_message_timestamp) {
+			//Check buddy because the api friendships/autocomplete_user_list/ not always response due to rate limit
+			JsonObject *user = json_array_get_object_element(json_object_get_array_member(thread, "users"), 0);
+			PurpleBuddy *buddy = purple_blist_find_buddy(ia->account, json_object_get_string_member(user, "username"));
+			if (buddy == NULL) {
+				ig_add_buddy_from_json(ia, user);
+			}
+			
 			const gchar *thread_id = json_object_get_string_member(thread, "thread_id");
 			gchar *thread_url = g_strdup_printf(IG_URL_PREFIX "/direct_v2/threads/%s/", thread_id);
 			ig_fetch_url_with_method(ia, "GET", thread_url, NULL, ig_thread_cb, GINT_TO_POINTER(last_message_timestamp));
